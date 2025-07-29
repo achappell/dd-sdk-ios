@@ -1,4 +1,5 @@
 # Unreleased
+- [FEATURE] Send Accessibility attributes in View Updates. See [#2410][]
 
 - [IMPROVEMENT] Update the default tracing sampling rate to 100%. See [#2253][] 
 - [IMPROVEMENT] Update the default TraceContextInjection to `.sampled`. See [#2253][]
@@ -16,7 +17,6 @@
 - [IMPROVEMENT] Add opt-out API to disable tracking memory warnings as RUM Errors. See [#2355][]
 
 # 2.30.0 / 28-07-2025
-
 - [FEATURE] Add SwiftUI support for Session Replay privacy overrides. See [#2333][]
 - [FEATURE] Add Clear User Info API. See [#2369][]
 - [FEATURE] Collect battery and locale attributes. See [#2351][] [#2327][]
@@ -944,6 +944,7 @@ Release `2.0` introduces breaking changes. Follow the [Migration Guide](MIGRATIO
 [#2370]: https://github.com/DataDog/dd-sdk-ios/pull/2370
 [#2395]: https://github.com/DataDog/dd-sdk-ios/pull/2395
 [#2405]: https://github.com/DataDog/dd-sdk-ios/pull/2405
+[#2410]: https://github.com/DataDog/dd-sdk-ios/pull/2410
 
 [@00fa9a]: https://github.com/00FA9A
 [@britton-earnin]: https://github.com/Britton-Earnin
