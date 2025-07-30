@@ -30,6 +30,11 @@ internal struct RUMViewEventsFilter {
                 return event
             }
 
+            if viewMetadata.hasAccessibility {
+                // If this event has accessibility information, always keep it
+                return event
+            }
+
             guard seen.contains(viewMetadata.id) == false else {
                 // If we've already seen this view, we can skip this
                 if skipped[viewMetadata.id] == nil {
