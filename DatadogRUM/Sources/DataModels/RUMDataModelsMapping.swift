@@ -67,7 +67,7 @@ internal extension RUMViewEvent {
     struct Metadata: Codable {
         let id: String
         let documentVersion: Int64
-        let hasAccessibility: Bool
+        let hasAccessibility: Bool?
 
         private enum CodingKeys: String, CodingKey {
             case id = "id"
@@ -75,10 +75,10 @@ internal extension RUMViewEvent {
             case hasAccessibility = "has_accessibility"
         }
 
-        init(id: String, documentVersion: Int64, hasAccessibility: Bool = false) {
+        init(id: String, documentVersion: Int64, hasAccessibility: Bool? = false) {
             self.id = id
             self.documentVersion = documentVersion
-            self.hasAccessibility = hasAccessibility ?? false
+            self.hasAccessibility = hasAccessibility
         }
     }
 

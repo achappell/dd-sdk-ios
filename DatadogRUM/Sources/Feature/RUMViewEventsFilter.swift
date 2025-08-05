@@ -30,7 +30,7 @@ internal struct RUMViewEventsFilter {
                 return event
             }
 
-            if viewMetadata.hasAccessibility {
+            if viewMetadata.hasAccessibility == true {
                 // If this event has accessibility information, always keep it
                 return event
             }
