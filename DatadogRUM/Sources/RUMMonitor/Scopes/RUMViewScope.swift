@@ -84,6 +84,8 @@ internal class RUMViewScope: RUMScope, RUMContextProvider {
     /// Tells if this scope has received the "start" command.
     /// If `didReceiveStartCommand == true` and another "start" command is received for this View this scope is marked as inactive.
     private var didReceiveStartCommand = false
+    /// Track if this is the first view update for the current view
+    private var isFirstViewUpdate = true
 
     /// Number of Actions happened on this View.
     private var actionsCount: UInt = 0
@@ -246,7 +248,9 @@ extension RUMViewScope {
                 isActiveView = false
             } else {
                 // Reset accessibility reader for a new view
-                accessibilityReader?.resetForNewView()
+                accessibilityReader?.clearChangedAttributes()
+                // Reset first view update flag for new view
+                isFirstViewUpdate = true
             }
             attributes.merge(command.attributes) { $1 }
             didReceiveStartCommand = true
@@ -613,6 +617,13 @@ extension RUMViewScope {
             performance = nil
         }
 
+        var accessibility: RUMViewEvent.View.Accessibility? = nil
+        if isFirstViewUpdate {
+            accessibility = accessibilityReader?.allAccessibilityAttributes
+        } else {
+            accessibility = accessibilityReader?.changedAccessibilityAttributes
+        }
+
         let viewEvent = RUMViewEvent(
             dd: .init(
                 browserSdkVersion: nil,
@@ -661,7 +672,7 @@ extension RUMViewScope {
             usr: .init(context: context),
             version: context.version,
             view: .init(
-                accessibility: self.accessibilityReader?.rumAccessibility,
+                accessibility: accessibility,
                 action: .init(count: actionsCount.toInt64),
                 cpuTicksCount: cpuInfo?.greatestDiff,
                 cpuTicksPerSecond: timeSpent > 1.0 ? cpuInfo?.greatestDiff?.divideIfNotZero(by: Double(timeSpent)) : nil,
@@ -748,6 +759,8 @@ extension RUMViewScope {
             if let accessibilityReader = accessibilityReader {
                 accessibilityReader.clearChangedAttributes()
             }
+            // Mark that we've sent the first view update
+            isFirstViewUpdate = false
         } else { // if event was dropped by mapper
             version -= 1
         }
