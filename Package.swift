@@ -19,9 +19,7 @@ let opentelemetry = (name: "opentelemetry-swift", url: "https://github.com/open-
 
 // `dd-sdk-ios` supports a broader range of platform versions than `OpenTelemetryApi`.
 // When compiled in `OTEL_SWIFT` mode, we need to adjust the supported platforms accordingly.
-let platforms: [SupportedPlatform] = useOTelSwiftPackage ?
-    [.iOS(.v13), .tvOS(.v13), .macOS(.v12), .watchOS(.v7)] :
-    [.iOS(.v12), .tvOS(.v12), .macOS(.v12), .watchOS(.v7)]
+let platforms: [SupportedPlatform] = [.iOS(.v13), .tvOS(.v13), .macOS(.v12), .watchOS(.v7)]
 
 let internalSwiftSettings: [SwiftSetting] = ProcessInfo.processInfo.environment["DD_BENCHMARK"] != nil ?
     [.define("DD_BENCHMARK")] : []
