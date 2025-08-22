@@ -15,9 +15,7 @@ import Foundation
 // the API and SDK packages (see https://github.com/open-telemetry/opentelemetry-swift/issues/486).
 let useOTelSwiftPackage = ProcessInfo.processInfo.environment["OTEL_SWIFT"] != nil
 
-let opentelemetry = useOTelSwiftPackage ?
-    (name: "opentelemetry-swift", url: "https://github.com/open-telemetry/opentelemetry-swift.git", version: Version("1.13.0")) :
-    (name: "opentelemetry-swift-packages", url: "https://github.com/DataDog/opentelemetry-swift-packages.git", version: Version("1.13.1"))
+let opentelemetry = (name: "opentelemetry-swift", url: "https://github.com/open-telemetry/opentelemetry-swift.git", version: Version("1.13.0"))
 
 // `dd-sdk-ios` supports a broader range of platform versions than `OpenTelemetryApi`.
 // When compiled in `OTEL_SWIFT` mode, we need to adjust the supported platforms accordingly.
