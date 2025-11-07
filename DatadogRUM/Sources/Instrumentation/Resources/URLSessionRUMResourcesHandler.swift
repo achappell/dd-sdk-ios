@@ -118,16 +118,16 @@ internal final class URLSessionRUMResourcesHandler: DatadogURLSessionHandler, RU
 
         // Extract GraphQL attributes from request headers
         var combinedAttributes = userAttributes
-        if let operationName = originalRequest.value(forHTTPHeaderField: GraphQLHeaders.operationName) {
+        if let operationName = originalRequest.value(forHTTPHeaderField: "_dd-custom-header-graph-ql-operation-name") {
             combinedAttributes[CrossPlatformAttributes.graphqlOperationName] = operationName
         }
-        if let operationType = originalRequest.value(forHTTPHeaderField: GraphQLHeaders.operationType) {
+        if let operationType = originalRequest.value(forHTTPHeaderField: "_dd-custom-header-graph-ql-operation-type") {
             combinedAttributes[CrossPlatformAttributes.graphqlOperationType] = operationType
         }
-        if let variables = originalRequest.value(forHTTPHeaderField: GraphQLHeaders.variables) {
+        if let variables = originalRequest.value(forHTTPHeaderField: "_dd-custom-header-graph-ql-variables") {
             combinedAttributes[CrossPlatformAttributes.graphqlVariables] = variables
         }
-        if let payload = originalRequest.value(forHTTPHeaderField: GraphQLHeaders.payload) {
+        if let payload = originalRequest.value(forHTTPHeaderField: "_dd-custom-header-graph-ql-payload") {
             combinedAttributes[CrossPlatformAttributes.graphqlPayload] = payload
         }
 
