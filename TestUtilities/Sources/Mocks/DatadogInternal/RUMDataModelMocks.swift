@@ -45,6 +45,7 @@ public func randomRUMEvent() -> RUMDataModel {
         { RUMResourceEvent.mockRandom() },
         { RUMErrorEvent.mockRandom() },
         { RUMLongTaskEvent.mockRandom() },
+        { RUMVitalOperationStepEvent.mockRandom() }
     ])
     // swiftlint:enable opening_brace
 }
@@ -109,15 +110,15 @@ extension Device: AnyMockable, RandomMockable {
     }
 
     public static func mockWith(
-    architecture: String = "arm64e",
-    batteryLevel: Double = 1.0,
-    brand: String = "Apple",
-    brightnessLevel: Double = 1.0,
-    locale: String = "en-US",
-    model: String = "iPhone10,1",
-    name: String = "iPhone",
-    powerSavingMode: Bool = false,
-    type: DeviceType = .mobile
+        architecture: String = "arm64e",
+        batteryLevel: Double = 1.0,
+        brand: String = "Apple",
+        brightnessLevel: Double = 1.0,
+        locale: String = "en-US",
+        model: String = "iPhone10,1",
+        name: String = "iPhone",
+        powerSavingMode: Bool = false,
+        type: DeviceType = .mobile
     ) -> Device {
         .init(
             architecture: architecture,
@@ -135,9 +136,15 @@ extension Device: AnyMockable, RandomMockable {
     public static func mockRandom() -> Device {
         .init(
             architecture: .mockRandom(),
+            batteryLevel: .mockRandom(),
             brand: .mockRandom(),
+            brightnessLevel: .mockRandom(),
+            locale: .mockRandom(),
+            locales: .mockRandom(),
             model: .mockRandom(),
             name: .mockRandom(),
+            powerSavingMode: .mockRandom(),
+            timeZone: .mockRandom(),
             type: .mockRandom()
         )
     }
@@ -254,6 +261,7 @@ extension RUMViewEvent: RandomMockable {
             container: nil,
             context: .mockRandom(),
             date: date,
+            ddtags: .mockRandomDDTags(),
             device: .mockRandom(),
             display: nil,
             os: .mockRandom(),
@@ -361,6 +369,7 @@ extension RUMResourceEvent: RandomMockable {
             container: nil,
             context: .mockRandom(),
             date: .mockRandom(),
+            ddtags: .mockRandomDDTags(),
             device: .mockRandom(),
             display: nil,
             os: .mockRandom(),
@@ -461,6 +470,7 @@ extension RUMActionEvent: AnyMockable {
             container: nil,
             context: .mockRandom(),
             date: .mockRandom(),
+            ddtags: .mockRandomDDTags(),
             device: .mockRandom(),
             display: nil,
             os: .mockRandom(),
@@ -597,6 +607,7 @@ extension RUMLongTaskEvent: RandomMockable {
             container: nil,
             context: .mockRandom(),
             date: .mockRandom(),
+            ddtags: .mockRandomDDTags(),
             device: .mockRandom(),
             display: nil,
             longTask: .init(
@@ -732,5 +743,40 @@ extension RUMTelemetryOperatingSystem: RandomMockable {
             name: .mockRandom(),
             version: .mockRandom()
         )
+    }
+}
+
+extension RUMVitalOperationStepEvent: RandomMockable {
+    public static func mockRandom() -> RUMVitalOperationStepEvent {
+        return RUMVitalOperationStepEvent(
+            dd: .init(),
+            application: .init(id: .mockRandom()),
+            date: .mockRandom(),
+            session: .init(id: .mockRandom(), type: .user),
+            view: .init(id: .mockRandom(), url: .mockRandom()),
+            vital: .mockRandom()
+        )
+    }
+}
+
+extension RUMVitalOperationStepEvent.Vital: RandomMockable {
+    public static func mockRandom() -> RUMVitalOperationStepEvent.Vital {
+        return RUMVitalOperationStepEvent.Vital(
+            id: .mockRandom(),
+            stepType: .mockRandom()
+        )
+    }
+}
+
+extension RUMVitalOperationStepEvent.Vital.StepType: AnyMockable, RandomMockable {
+    public static var allCases: [RUMVitalOperationStepEvent.Vital.StepType]
+    = [.start, .end, .retry, .update]
+
+    public static func mockAny() -> Self {
+        return .start
+    }
+
+    public static func mockRandom() -> Self {
+        return RUMVitalOperationStepEvent.Vital.StepType.allCases.randomElement()!
     }
 }

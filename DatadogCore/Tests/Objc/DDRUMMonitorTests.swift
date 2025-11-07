@@ -96,6 +96,14 @@ class DDRUMUserActionTypeTests: XCTestCase {
     }
 }
 
+class DDRUMFeatureOperationFailureReasonTests: XCTestCase {
+    func testMappingToSwiftRUMFeatureOperationFailureReason() {
+        XCTAssertEqual(objc_RUMFeatureOperationFailureReason.error.swiftType, .error)
+        XCTAssertEqual(objc_RUMFeatureOperationFailureReason.abandoned.swiftType, .abandoned)
+        XCTAssertEqual(objc_RUMFeatureOperationFailureReason.other.swiftType, .other)
+    }
+}
+
 class SwiftUIRUMViewsPredicateBridgeTests: XCTestCase {
     func testItForwardsCallToObjcPredicate() {
         class MockPredicate: objc_SwiftUIRUMViewsPredicate {
@@ -246,6 +254,65 @@ class DDRUMMonitorTests: XCTestCase {
         XCTAssertNotEqual(try XCTUnwrap(sessionID1), try XCTUnwrap(sessionID2))
     }
 
+    func testSendingViewAttributes() throws {
+        RUM.enable(with: config)
+        let viewController = mockView
+        let objcRUMMonitor = objc_RUMMonitor.shared()
+
+        objcRUMMonitor.startView(viewController: mockView, name: .mockAny(), attributes: ["view-attribute3": "foobar"])
+
+        objcRUMMonitor.addViewAttribute(forKey: "view-attribute1", value: "foo")
+        objcRUMMonitor.addViewAttribute(forKey: "view-attribute2", value: "bar")
+        objcRUMMonitor.removeViewAttribute(forKey: "view-attribute2")
+
+        objcRUMMonitor.stopView(viewController: viewController, attributes: [:])
+
+        let rumEventMatchers = try core.waitAndReturnRUMEventMatchers()
+
+        let viewEvents = rumEventMatchers.filterRUMEvents(ofType: RUMViewEvent.self) { event in
+            return event.view.name != RUMOffViewEventsHandlingRule.Constants.applicationLaunchViewName
+        }
+        XCTAssertEqual(viewEvents.count, 2)
+
+        XCTAssertEqual(try viewEvents[1].attribute(forKeyPath: "context.view-attribute1"), "foo")
+        XCTAssertNil(try? viewEvents[1].attribute(forKeyPath: "context.view-attribute2") as String)
+        XCTAssertEqual(try viewEvents[1].attribute(forKeyPath: "context.view-attribute3"), "foobar")
+    }
+
+    func testSendingMultipleViewAttributes() throws {
+        RUM.enable(with: config)
+        let viewController = mockView
+        let objcRUMMonitor = objc_RUMMonitor.shared()
+
+        objcRUMMonitor.startView(viewController: viewController, name: .mockAny(), attributes: [:])
+
+        objcRUMMonitor.addViewAttributes(
+            [
+                "view-attribute1": "foo",
+                "view-attribute2": "bar",
+                "view-attribute3": 3,
+                "view-attribute4": true,
+                "view-attribute5": "foobar"
+            ]
+        )
+        objcRUMMonitor.removeViewAttributes(forKeys: ["view-attribute2", "view-attribute5"])
+
+        objcRUMMonitor.stopView(viewController: viewController, attributes: [:])
+
+        let rumEventMatchers = try core.waitAndReturnRUMEventMatchers()
+
+        let viewEvents = rumEventMatchers.filterRUMEvents(ofType: RUMViewEvent.self) { event in
+            return event.view.name != RUMOffViewEventsHandlingRule.Constants.applicationLaunchViewName
+        }
+        XCTAssertEqual(viewEvents.count, 2)
+
+        XCTAssertEqual(try viewEvents[1].attribute(forKeyPath: "context.view-attribute1"), "foo")
+        XCTAssertNil(try? viewEvents[1].attribute(forKeyPath: "context.view-attribute2") as String)
+        XCTAssertEqual(try viewEvents[1].attribute(forKeyPath: "context.view-attribute3"), 3)
+        XCTAssertEqual(try viewEvents[1].attribute(forKeyPath: "context.view-attribute4"), true)
+        XCTAssertNil(try? viewEvents[1].attribute(forKeyPath: "context.view-attribute5") as String)
+    }
+
     func testSendingViewEvents() throws {
         RUM.enable(with: config)
 
@@ -388,10 +455,12 @@ class DDRUMMonitorTests: XCTestCase {
         objcRUMMonitor.addError(error: error, source: .custom, attributes: ["event-attribute1": "foo1"])
         objcRUMMonitor.addError(message: "error message", stack: "error stack", source: .source, attributes: [:])
 
+        objcRUMMonitor._internal_sync_addError(NSError.mockAny(), source: .custom, attributes: [:])
+
         let rumEventMatchers = try core.waitAndReturnRUMEventMatchers()
 
         let errorEvents = rumEventMatchers.filterRUMEvents(ofType: RUMErrorEvent.self)
-        XCTAssertEqual(errorEvents.count, 4)
+        XCTAssertEqual(errorEvents.count, 5)
 
         let event1Matcher = errorEvents[0]
         let event1: RUMErrorEvent = try event1Matcher.model()
@@ -426,6 +495,12 @@ class DDRUMMonitorTests: XCTestCase {
         XCTAssertEqual(event4.error.message, "error message")
         XCTAssertEqual(event4.error.source, .source)
         XCTAssertEqual(event4.error.stack, "error stack")
+
+        let event5Matcher = errorEvents[4]
+        let event5: RUMErrorEvent = try event5Matcher.model()
+        XCTAssertEqual(event5.error.type, "abc - 0")
+        XCTAssertEqual(event5.error.source, .custom)
+        XCTAssertEqual(event5.error.message, #"Error Domain=abc Code=0 "(null)""#)
     }
 
     func testSendingActionEvents() throws {
@@ -443,22 +518,18 @@ class DDRUMMonitorTests: XCTestCase {
         let rumEventMatchers = try core.waitAndReturnRUMEventMatchers()
 
         let actionEvents = rumEventMatchers.filterRUMEvents(ofType: RUMActionEvent.self)
-        XCTAssertEqual(actionEvents.count, 3)
+        XCTAssertEqual(actionEvents.count, 2)
 
         let event1Matcher = actionEvents[0]
         let event1: RUMActionEvent = try event1Matcher.model()
-        XCTAssertEqual(event1.action.type, .applicationStart)
+        XCTAssertEqual(event1.action.type, .tap)
+        XCTAssertEqual(try event1Matcher.attribute(forKeyPath: "context.event-attribute1"), "foo1")
 
         let event2Matcher = actionEvents[1]
         let event2: RUMActionEvent = try event2Matcher.model()
-        XCTAssertEqual(event2.action.type, .tap)
+        XCTAssertEqual(event2.action.type, .swipe)
         XCTAssertEqual(try event2Matcher.attribute(forKeyPath: "context.event-attribute1"), "foo1")
-
-        let event3Matcher = actionEvents[2]
-        let event3: RUMActionEvent = try event3Matcher.model()
-        XCTAssertEqual(event3.action.type, .swipe)
-        XCTAssertEqual(try event3Matcher.attribute(forKeyPath: "context.event-attribute1"), "foo1")
-        XCTAssertEqual(try event3Matcher.attribute(forKeyPath: "context.event-attribute2"), "foo2")
+        XCTAssertEqual(try event2Matcher.attribute(forKeyPath: "context.event-attribute2"), "foo2")
     }
 
     func testSendingGlobalAttributes() throws {

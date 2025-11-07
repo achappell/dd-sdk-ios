@@ -105,12 +105,8 @@ final class RUMUntrackedModalViewsAutoInstrumentationScenario: TestScenario {
         func rumView(for viewController: UIViewController) -> RUMView? {
             if let viewName = viewController.accessibilityLabel {
                 if viewController.modalPresentationStyle == .fullScreen {
-                    if #available(iOS 13, tvOS 13, *) {
-                        // Untracked on iOS/tvOS 13+ via isModalInPresentation
-                        return nil
-                    } else {
-                        return .init(name: viewName, isUntrackedModal: true)
-                    }
+                    // Untracked on iOS/tvOS 13+ via isModalInPresentation
+                    return nil
                 }
                 return .init(name: viewName)
             } else {
@@ -285,7 +281,6 @@ final class RUMStopSessionsScenario: TestScenario {
     }
 }
 
-@available(iOS 13, *)
 /// Scenario which presents `SwiftUI`-based hierarchy and navigates through
 /// its views and view controllers.
 final class RUMSwiftUIManualInstrumentationScenario: TestScenario {
@@ -336,7 +331,6 @@ final class RUMSwiftUIAutoInstrumentationSingleRootViewScenario: TestScenario {
 }
 
 /// 2. Tabbar root view and multiple navigation scenario in each tab.
-@available(iOS 13, *)
 final class RUMSwiftUIAutoInstrumentationRootTabbarScenario: TestScenario {
     static var storyboardName: String = "RUMSwiftUIAutoInstrumentationRootTabbarScenario"
 
@@ -366,6 +360,21 @@ final class RUMSwiftUIAutoInstrumentationActionViewScenario: TestScenario {
 }
 
 // TODO: RUM-9888 - Manual + Auto instrumentation scenario
+
+// MARK: - Feature Operations
+
+/// Scenario which tests Feature Operations API by starting, succeeding, and failing various operations.
+/// Each operation creates vital events that are sent to the server.
+final class RUMFeatureOperationsScenario: TestScenario {
+    static let storyboardName = "RUMFeatureOperationsScenario"
+
+    func configureFeatures() {
+        var config = RUM.Configuration(applicationID: "rum-application-id")
+        config.customEndpoint = Environment.serverMockConfiguration()?.rumEndpoint
+        config.uiKitViewsPredicate = DefaultUIKitRUMViewsPredicate()
+        RUM.enable(with: config)
+    }
+}
 
 // MARK: - Helpers
 

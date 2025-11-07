@@ -102,6 +102,7 @@ test-ios-all:
 	@$(MAKE) test-ios SCHEME="DatadogTrace iOS"
 	@$(MAKE) test-ios SCHEME="DatadogCrashReporting iOS"
 	@$(MAKE) test-ios SCHEME="DatadogWebViewTracking iOS"
+	@$(MAKE) test-ios SCHEME="DatadogFlags iOS"
 	@$(MAKE) test-ios SCHEME="DatadogIntegrationTests iOS"
 
 # Run unit tests for specified SCHEME using tvOS Simulator
@@ -120,6 +121,7 @@ test-tvos-all:
 	@$(MAKE) test-tvos SCHEME="DatadogLogs tvOS"
 	@$(MAKE) test-tvos SCHEME="DatadogTrace tvOS"
 	@$(MAKE) test-tvos SCHEME="DatadogCrashReporting tvOS"
+	@$(MAKE) test-tvos SCHEME="DatadogFlags tvOS"
 	@$(MAKE) test-tvos SCHEME="DatadogIntegrationTests tvOS"
 
 # Run UI tests for specified TEST_PLAN
@@ -147,6 +149,16 @@ ui-test-podinstall:
 tools-test:
 	@$(ECHO_TITLE) "make tools-test"
 	./tools/tools-test.sh
+
+# Run tests for issue handler tool
+issue-handler-test:
+	@$(ECHO_TITLE) "make issue-handler-test"
+	cd tools/issue_handler && ./run_tests.sh
+
+# Run integration tests for issue handler tool
+issue-handler-integration-test:
+	@$(ECHO_TITLE) "make issue-handler-integration-test"
+	cd tools/issue_handler && source venv/bin/activate && PYTHONPATH=. python integration_tests/test_analysis.py --issue 1
 
 # Run smoke tests
 smoke-test:
@@ -311,37 +323,60 @@ sr-snapshot-tests-open:
 	@$(ECHO_TITLE) "make sr-snapshot-tests-open"
 	./tools/sr-snapshot-test.sh --open-project
 
-# Generate api-surface files for Datadog.
-api-surface:
-		@echo "Generating api-surface-swift"
-		@cd tools/api-surface && \
-			swift run api-surface spm \
-			--path ../../ \
-			--language swift \
-			--library-name DatadogCore \
-			--library-name DatadogLogs \
-			--library-name DatadogTrace \
-			--library-name DatadogRUM \
-			--library-name DatadogCrashReporting \
-			--library-name DatadogWebViewTracking \
-			--library-name DatadogSessionReplay \
-			> ../../api-surface-swift && \
-			cd -
+### API-SURFACE
 
-		@echo "Generating api-surface-objc"
-		@cd tools/api-surface && \
-			swift run api-surface spm \
-			--path ../../ \
-			--language objc \
-			--library-name DatadogCore \
-			--library-name DatadogLogs \
-			--library-name DatadogTrace \
-			--library-name DatadogRUM \
-			--library-name DatadogCrashReporting \
-			--library-name DatadogWebViewTracking \
-			--library-name DatadogSessionReplay \
-			> ../../api-surface-objc && \
-			cd -
+# Define default paths for API output files
+SWIFT_OUTPUT_PATH ?= api-surface-swift
+OBJC_OUTPUT_PATH ?= api-surface-objc
+
+# Use different paths when running in CI
+ifeq ($(ENV),ci)
+  SWIFT_OUTPUT_PATH := api-surface-swift-generated
+  OBJC_OUTPUT_PATH := api-surface-objc-generated
+endif
+
+# Define the list of Datadog modules for API surface generation
+DATADOG_MODULES := DatadogCore DatadogLogs DatadogTrace DatadogRUM DatadogCrashReporting DatadogWebViewTracking DatadogSessionReplay DatadogFlags
+
+# Generate api-surface files for Datadog APIs
+api-surface:
+	@$(ECHO_TITLE) "make api-surface"
+	@echo "Generating api-surface-swift"
+	@cd tools/api-surface && \
+		swift run api-surface generate \
+		--path ../../ \
+		--language swift \
+		$(foreach module,$(DATADOG_MODULES),--library-name $(module)) \
+		--output-file ../../$(SWIFT_OUTPUT_PATH)
+
+	@echo "Generating api-surface-objc"
+	@cd tools/api-surface && \
+		swift run api-surface generate \
+		--path ../../ \
+		--language objc \
+		$(foreach module,$(DATADOG_MODULES),--library-name $(module)) \
+		--output-file ../../$(OBJC_OUTPUT_PATH)
+
+# Verify API surface files for Datadog APIs
+api-surface-verify:
+	@$(ECHO_TITLE) "make api-surface-verify"
+	@echo "Verifying api-surface-swift"
+	@cd tools/api-surface && \
+		swift run api-surface verify \
+		--path ../../ \
+		--language swift \
+		$(foreach module,$(DATADOG_MODULES),--library-name $(module)) \
+		--output-file /tmp/api-surface-swift-generated \
+		../../api-surface-swift
+
+	@echo "Verifying api-surface-objc"
+	@cd tools/api-surface && \
+		swift run api-surface verify \
+		--path ../../ \
+		--language objc \
+		$(foreach module,$(DATADOG_MODULES),--library-name $(module)) \
+		--output-file /tmp/api-surface-objc-generated \
+		../../api-surface-objc
 
 # Builds API documentation using the same process as Swift Package Index.
 spi-docs-build:
@@ -409,6 +444,7 @@ release-publish-dependent-podspecs:
 	@$(MAKE) release-publish-podspec PODSPEC_NAME="DatadogSessionReplay.podspec"
 	@$(MAKE) release-publish-podspec PODSPEC_NAME="DatadogCrashReporting.podspec"
 	@$(MAKE) release-publish-podspec PODSPEC_NAME="DatadogWebViewTracking.podspec"
+	@$(MAKE) release-publish-podspec PODSPEC_NAME="DatadogFlags.podspec"
 
 # Set ot update CI secrets
 set-ci-secret:

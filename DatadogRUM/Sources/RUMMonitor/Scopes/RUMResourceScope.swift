@@ -189,7 +189,8 @@ internal class RUMResourceScope: RUMScope {
             container: nil,
             context: .init(contextInfo: command.globalAttributes.merging(parent.attributes) { $1 }.merging(attributes) { $1 }),
             date: resourceStartTime.addingTimeInterval(serverTimeOffset).timeIntervalSince1970.toInt64Milliseconds,
-            device: context.normalizedDevice,
+            ddtags: context.ddTags,
+            device: context.normalizedDevice(),
             display: nil,
             os: context.os,
             resource: .init(
@@ -280,7 +281,7 @@ internal class RUMResourceScope: RUMScope {
 
     private func sendErrorEvent(on command: RUMStopResourceWithErrorCommand, context: DatadogContext, writer: Writer) {
         let errorFingerprint: String? = attributes.removeValue(forKey: RUM.Attributes.errorFingerprint)?.dd.decode()
-        let timeSinceAppStart = command.time.timeIntervalSince(context.launchTime.launchDate).toInt64Milliseconds
+        let timeSinceAppStart = command.time.timeIntervalSince(context.launchInfo.processLaunchDate).toInt64Milliseconds
 
         // Write error event
         let errorEvent = RUMErrorEvent(
@@ -304,7 +305,8 @@ internal class RUMResourceScope: RUMScope {
             container: nil,
             context: .init(contextInfo: command.globalAttributes.merging(parent.attributes) { $1 }.merging(attributes) { $1 }),
             date: command.time.addingTimeInterval(serverTimeOffset).timeIntervalSince1970.toInt64Milliseconds,
-            device: context.normalizedDevice,
+            ddtags: context.ddTags,
+            device: context.normalizedDevice(),
             display: nil,
             error: .init(
                 binaryImages: nil,

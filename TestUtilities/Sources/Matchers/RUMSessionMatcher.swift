@@ -91,6 +91,9 @@ public class RUMSessionMatcher {
 
         /// `RUMLongTask` events tracked during this visit.
         public fileprivate(set) var longTaskEvents: [RUMLongTaskEvent] = []
+
+        /// `RUMVital` events tracked during this visit.
+        public fileprivate(set) var vitalEvents: [RUMVitalOperationStepEvent] = []
     }
 
     /// RUM application ID for this session.
@@ -110,21 +113,25 @@ public class RUMSessionMatcher {
     public let resourceEventMatchers: [RUMEventMatcher]
     public let errorEventMatchers: [RUMEventMatcher]
     public let longTaskEventMatchers: [RUMEventMatcher]
+    public let operationStepEventMatchers: [RUMEventMatcher]
 
     /// `RUMView` events tracked in this session.
-    let viewEvents: [RUMViewEvent]
+    public let viewEvents: [RUMViewEvent]
 
     /// `RUMAction` events tracked in this session.
-    let actionEvents: [RUMActionEvent]
+    public let actionEvents: [RUMActionEvent]
 
     /// `RUMResource` events tracked in this session.
-    let resourceEvents: [RUMResourceEvent]
+    public let resourceEvents: [RUMResourceEvent]
 
     /// `RUMError` events tracked in this session.
-    let errorEvents: [RUMErrorEvent]
+    public let errorEvents: [RUMErrorEvent]
 
     /// `RUMLongTask` events tracked in this session.
-    let longTaskEvents: [RUMLongTaskEvent]
+    public let longTaskEvents: [RUMLongTaskEvent]
+
+    /// `RUMVitalOperationStep` events tracked in this session.
+    public let operationStepEvents: [RUMVitalOperationStepEvent]
 
     private init(applicationID: String, sessionID: String, sessionEventMatchers: [RUMEventMatcher]) throws {
         // Sort events so they follow increasing time order
@@ -148,6 +155,10 @@ public class RUMSessionMatcher {
         self.resourceEventMatchers = eventsMatchersByType["resource"] ?? []
         self.errorEventMatchers = eventsMatchersByType["error"] ?? []
         self.longTaskEventMatchers = eventsMatchersByType["long_task"] ?? []
+        self.operationStepEventMatchers = try (eventsMatchersByType["vital"] ?? []).filter { vitalMatcher in
+            let vitalType: String = try vitalMatcher.attribute(forKeyPath: "vital.type")
+            return vitalType == "operation_step"
+        }
 
         let viewEvents: [RUMViewEvent] = try viewEventMatchers.map { matcher in try matcher.model() }
 
@@ -163,12 +174,16 @@ public class RUMSessionMatcher {
         let longTaskEvents: [RUMLongTaskEvent] = try longTaskEventMatchers
             .map { matcher in try matcher.model() }
 
+        let operationStepVitalEvents: [RUMVitalOperationStepEvent] = try operationStepEventMatchers
+            .map { matcher in try matcher.model() }
+
         // Validate each group of events individually
         try validate(rumViewEvents: viewEvents)
         try validate(rumActionEvents: actionEvents)
         try validate(rumResourceEvents: resourceEvents)
         try validate(rumErrorEvents: errorEvents)
         try validate(rumLongTaskEvents: longTaskEvents)
+        try validate(operationStepVitalEvents: operationStepVitalEvents)
 
         // Group RUMView events into ViewVisits:
         let uniqueViewIDs = Set(viewEvents.map { $0.view.id })
@@ -243,11 +258,27 @@ public class RUMSessionMatcher {
             }
         }
 
+        try operationStepVitalEvents.forEach { rumEvent in
+            if let visit = visitsByViewID[rumEvent.view.id] {
+                visit.vitalEvents.append(rumEvent)
+            } else {
+                throw RUMSessionConsistencyException(
+                    description: "Cannot link RUM Event: \(rumEvent) to `RUMSessionMatcher.ViewVisit` by `view.id` (no visit found for `view.id`: \(rumEvent.view.id))."
+                )
+            }
+        }
+
         // Sort visits by time
         let visitsEventOrderedByTime = visits.sorted { firstVisit, secondVisit in
             let firstVisitTime = firstVisit.viewEvents[0].date
             let secondVisitTime = secondVisit.viewEvents[0].date
-            return firstVisitTime < secondVisitTime
+            let firstViewName = firstVisit.viewEvents[0].view.name ?? ""
+            let secondViewName = secondVisit.viewEvents[0].view.name ?? ""
+            if firstVisitTime == secondVisitTime { // arbitrary: if times equal, sort by view name
+                return firstViewName < secondViewName
+            } else {
+                return firstVisitTime < secondVisitTime
+            }
         }
 
         // Sort view events in each visit by document version
@@ -282,6 +313,7 @@ public class RUMSessionMatcher {
         self.resourceEvents = resourceEvents
         self.errorEvents = errorEvents
         self.longTaskEvents = longTaskEvents
+        self.operationStepEvents = operationStepVitalEvents
     }
 
     /// Checks if this session contains a view with a specific ID.
@@ -347,6 +379,16 @@ private func validate(rumLongTaskEvents: [RUMLongTaskEvent]) throws {
         if longTaskEvent.source == .ios { // validete only mobile events
             try validate(device: longTaskEvent.device)
             try validate(os: longTaskEvent.os)
+        }
+    }
+}
+
+private func validate(operationStepVitalEvents: [RUMVitalOperationStepEvent]) throws {
+    // All vital events must use `session.plan` "lite"
+    try operationStepVitalEvents.forEach { vitalEvent in
+        if vitalEvent.source == .ios { // validate only mobile events
+            try validate(device: vitalEvent.device)
+            try validate(os: vitalEvent.os)
         }
     }
 }
@@ -488,18 +530,6 @@ extension RUMSessionMatcher.View {
     }
 }
 
-private extension Date {
-    init(millisecondsSince1970: Int64) {
-        self.init(timeIntervalSince1970: TimeInterval(millisecondsSince1970) / 1_000)
-    }
-}
-
-private extension TimeInterval {
-    init(fromNanoseconds nanoseconds: Int64) {
-        self = TimeInterval(nanoseconds) / 1_000_000_000
-    }
-}
-
 extension RUMSessionMatcher {
     /// Asserts that all events in this session have certain `sessionPrecondition` set.
     /// Throws if there are no views in this session.
@@ -507,26 +537,18 @@ extension RUMSessionMatcher {
         guard !views.isEmpty else {
             throw RUMSessionConsistencyException(description: "There are no views in this session")
         }
+        return sessionPrecondition == self.sessionPrecondition
+    }
 
-        for view in views {
-            guard view.viewEvents.allSatisfy({ $0.dd.session?.sessionPrecondition == sessionPrecondition }) else {
-                return false
-            }
-            guard view.actionEvents.allSatisfy({ $0.dd.session?.sessionPrecondition == sessionPrecondition }) else {
-                return false
-            }
-            guard view.resourceEvents.allSatisfy({ $0.dd.session?.sessionPrecondition == sessionPrecondition }) else {
-                return false
-            }
-            guard view.errorEvents.allSatisfy({ $0.dd.session?.sessionPrecondition == sessionPrecondition }) else {
-                return false
-            }
-            guard view.longTaskEvents.allSatisfy({ $0.dd.session?.sessionPrecondition == sessionPrecondition }) else {
-                return false
-            }
-        }
-
-        return true
+    public var sessionPrecondition: RUMSessionPrecondition? {
+        let fromViews = viewEvents.compactMap { $0.dd.session?.sessionPrecondition }
+        let fromActions = actionEvents.compactMap { $0.dd.session?.sessionPrecondition }
+        let fromResources = resourceEvents.compactMap { $0.dd.session?.sessionPrecondition }
+        let fromErrors = errorEvents.compactMap { $0.dd.session?.sessionPrecondition }
+        let fromLongTasks = longTaskEvents.compactMap { $0.dd.session?.sessionPrecondition }
+        let all = Set(fromViews + fromActions + fromResources + fromErrors + fromLongTasks)
+        precondition(all.count == 1, "All events must share the same session precondition")
+        return all.first
     }
 }
 
@@ -534,20 +556,51 @@ extension RUMSessionMatcher {
 
 extension RUMSessionMatcher.View {
     /// The start of this view (as timestamp; milliseconds) defined as the start timestamp of the earliest view event in this view.
-    var startTimestampMs: Int64 { viewEvents.map({ $0.date }).min() ?? 0 }
+    public var startTimestampMs: Int64 { viewEvents.map({ $0.date }).min() ?? 0 }
+
+    /// The duration of this view, in nanoseconds.
+    public var durationNs: Int64? { viewEvents.last?.view.timeSpent }
+
+    /// The duration of this view, in seconds.
+    public var duration: TimeInterval? { durationNs.map { TimeInterval(fromNanoseconds: $0) } }
 }
 
 extension RUMSessionMatcher: CustomStringConvertible {
     public var description: String { renderSession() }
 
     /// The start of this session (as timestamp; milliseconds) defined as the start timestamp of the earliest view in this session.
-    private var sessionStartTimestampMs: Int64 { viewEvents.map({ $0.date }).min() ?? 0 }
+    private var sessionStartTimestampMs: Int64? { viewEvents.map({ $0.date }).min() }
 
     /// The start of this session (as timestamp; nanoseconds) defined as the start timestamp of the earliest view in this session.
-    private var sessionStartTimestampNs: Int64 { sessionStartTimestampMs * 1_000_000 }
+    private var sessionStartTimestampNs: Int64? { sessionStartTimestampMs.map { $0 * 1_000_000 } }
 
     /// The end of this session (as timestamp; nanoseconds) defined as the end timestamp of the latest view in this session.
-    private var sessionEndTimestampNs: Int64 { viewEvents.map({ $0.date * 1_000_000 + $0.view.timeSpent }).max() ?? 0 }
+    private var sessionEndTimestampNs: Int64? { viewEvents.map({ $0.date * 1_000_000 + $0.view.timeSpent }).max() }
+
+    public var sessionStartDate: Date? { sessionStartTimestampMs.map { Date(millisecondsSince1970: $0) } }
+
+    /// The duration of this session, in nanoseconds.
+    public var durationNs: Int64? {
+        guard let startNs = sessionStartTimestampNs, let endNs = sessionEndTimestampNs else {
+            return nil
+        }
+        return endNs - startNs
+    }
+
+    /// The duration of this session, in seconds.
+    public var duration: TimeInterval? { durationNs.map { TimeInterval(fromNanoseconds: $0) } }
+
+    /// The application start action.
+    public var applicationStartAction: RUMActionEvent? {
+        let appStartActions = actionEvents.filter { $0.action.type == .applicationStart }
+        precondition(appStartActions.count <= 1, "Session cannot have more than one `.applicationStart` action")
+        return appStartActions.first
+    }
+
+    /// The application startup time (nanoseconds).
+    public var applicationStartupTime: TimeInterval? {
+        return applicationStartAction?.action.loadingTime.map { TimeInterval(fromNanoseconds: $0) }
+    }
 
     private func renderSession() -> String {
         var output = renderBox(string: "🎞 RUM session")
@@ -555,9 +608,10 @@ extension RUMSessionMatcher: CustomStringConvertible {
             attributes: [
                 ("application.id", applicationID),
                 ("id", sessionID),
+                ("precondition", sessionPrecondition?.rawValue ?? "nil"),
                 ("views.count", "\(views.count)"),
                 ("start", prettyDate(timestampMs: sessionStartTimestampMs)),
-                ("duration", pretty(nanoseconds: sessionEndTimestampNs - sessionStartTimestampNs)),
+                ("duration", pretty(nanoseconds: durationNs)),
             ]
         )
         views.forEach { view in
@@ -578,9 +632,9 @@ extension RUMSessionMatcher: CustomStringConvertible {
                 ("name", view.name ?? "nil"),
                 ("id", view.viewID),
                 ("date", prettyDate(timestampMs: lastViewEvent.date)),
-                ("date (relative in session)", pretty(milliseconds: lastViewEvent.date - sessionStartTimestampMs)),
+                ("date (relative in session)", pretty(milliseconds: sessionStartTimestampMs.map { lastViewEvent.date - $0 })),
                 ("duration", pretty(nanoseconds: lastViewEvent.view.timeSpent)),
-                ("event counts", "view (\(view.viewEvents.count)), action (\(view.actionEvents.count)), resource (\(view.resourceEvents.count)), error (\(view.errorEvents.count)), long task (\(view.longTaskEvents.count))"),
+                ("event counts", "view (\(view.viewEvents.count)), action (\(view.actionEvents.count)), resource (\(view.resourceEvents.count)), error (\(view.errorEvents.count)), long task (\(view.longTaskEvents.count)), vital (\(view.vitalEvents.count))"),
             ]
         )
 
@@ -602,6 +656,11 @@ extension RUMSessionMatcher: CustomStringConvertible {
         for longTask in view.longTaskEvents {
             output += renderEmptyLine()
             output += render(event: longTask, in: view)
+        }
+
+        for vital in view.vitalEvents {
+            output += renderEmptyLine()
+            output += render(event: vital, in: view)
         }
 
         output += renderEmptyLine()
@@ -665,6 +724,24 @@ extension RUMSessionMatcher: CustomStringConvertible {
         return output
     }
 
+    private func render(event: RUMVitalOperationStepEvent, in view: View) -> String {
+        let vital = event.vital
+        var output = renderAttributesBox(attributes: [("⚡ RUM Vital", "")], indentationLevel: 2)
+        output += renderAttributesBox(
+            attributes: [
+                ("date (relative in view)", pretty(milliseconds: event.date - view.startTimestampMs)),
+                ("name", vital.name ?? ""),
+                ("operation.key", vital.operationKey ?? "nil"),
+                ("type", "\(vital.type)"),
+                ("step.type", "\(vital.stepType.rawValue)"),
+                ("failure.reason", vital.failureReason?.rawValue ?? "nil"),
+            ],
+            prefix: "→",
+            indentationLevel: 3
+        )
+        return output
+    }
+
     // MARK: - Rendering helpers
 
     private static let rendererWidth = 90
@@ -716,11 +793,17 @@ extension RUMSessionMatcher: CustomStringConvertible {
         return horizontalBorder + "\n"
     }
 
-    private func pretty(milliseconds: Int64) -> String {
-        pretty(nanoseconds: milliseconds * 1_000_000)
+    private func pretty(milliseconds: Int64?) -> String {
+        guard let milliseconds else {
+            return "nil"
+        }
+        return pretty(nanoseconds: milliseconds * 1_000_000)
     }
 
-    private func pretty(nanoseconds: Int64) -> String {
+    private func pretty(nanoseconds: Int64?) -> String {
+        guard let nanoseconds else {
+            return "nil"
+        }
         if nanoseconds >= 1_000_000_000 {
             let seconds = round((Double(nanoseconds) / 1_000_000_000) * 100) / 100
             return "\(seconds)s"
@@ -739,7 +822,11 @@ extension RUMSessionMatcher: CustomStringConvertible {
         return formatter
     }()
 
-    private func prettyDate(timestampMs: Int64) -> String {
+    private func prettyDate(timestampMs: Int64?) -> String {
+        guard let timestampMs else {
+            return "nil"
+        }
+
         let timestampSec = TimeInterval(timestampMs) / 1_000
         let date = Date(timeIntervalSince1970: timestampSec)
         return RUMSessionMatcher.dateFormatter.string(from: date)

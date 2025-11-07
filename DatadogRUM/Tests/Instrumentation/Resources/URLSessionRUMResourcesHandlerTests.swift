@@ -940,6 +940,74 @@ class URLSessionRUMResourcesHandlerTests: XCTestCase {
         XCTAssertTrue(baggageHeader?.contains("session.id=abcdef01-2345-6789-abcd-ef0123456789") == true)
     }
 
+    // MARK: - GraphQL Header Extraction Tests
+
+    func testGivenRequestWithGraphQLHeaders_whenInterceptionCompletes_itExtractsGraphQLAttributes() throws {
+        let receiveCommand = expectation(description: "Receive RUMStopResourceCommand")
+        var stopResourceCommand: RUMStopResourceCommand?
+        commandSubscriber.onCommandReceived = { command in
+            if let command = command as? RUMStopResourceCommand {
+                stopResourceCommand = command
+                receiveCommand.fulfill()
+            }
+        }
+
+        // Given
+        var mockRequest: URLRequest = .mockWith(url: "https://graphql.example.com/api")
+        mockRequest.setValue("GetUser", forHTTPHeaderField: ExpectedGraphQLHeaders.operationName)
+        mockRequest.setValue("query", forHTTPHeaderField: ExpectedGraphQLHeaders.operationType)
+        mockRequest.setValue("{\"userId\":\"123\"}", forHTTPHeaderField: ExpectedGraphQLHeaders.variables)
+        mockRequest.setValue("query GetUser($userId: ID!) { user(id: $userId) { name } }", forHTTPHeaderField: ExpectedGraphQLHeaders.payload)
+
+        let immutableRequest = ImmutableRequest(request: mockRequest)
+        let taskInterception = URLSessionTaskInterception(request: immutableRequest, isFirstParty: false)
+        let response: HTTPURLResponse = .mockResponseWith(statusCode: 200)
+        taskInterception.register(response: response, error: nil)
+
+        // When
+        handler.interceptionDidComplete(interception: taskInterception)
+
+        // Then
+        waitForExpectations(timeout: 0.5, handler: nil)
+
+        let attributes = try XCTUnwrap(stopResourceCommand?.attributes)
+        XCTAssertEqual(attributes[CrossPlatformAttributes.graphqlOperationName] as? String, "GetUser")
+        XCTAssertEqual(attributes[CrossPlatformAttributes.graphqlOperationType] as? String, "query")
+        XCTAssertEqual(attributes[CrossPlatformAttributes.graphqlVariables] as? String, "{\"userId\":\"123\"}")
+        XCTAssertEqual(attributes[CrossPlatformAttributes.graphqlPayload] as? String, "query GetUser($userId: ID!) { user(id: $userId) { name } }")
+    }
+
+    func testGivenRequestWithGraphQLHeaders_whenInterceptionCompletesWithError_itExtractsGraphQLAttributes() throws {
+        let receiveCommand = expectation(description: "Receive RUMStopResourceWithErrorCommand")
+        var stopResourceWithErrorCommand: RUMStopResourceWithErrorCommand?
+        commandSubscriber.onCommandReceived = { command in
+            if let command = command as? RUMStopResourceWithErrorCommand {
+                stopResourceWithErrorCommand = command
+                receiveCommand.fulfill()
+            }
+        }
+
+        // Given
+        var mockRequest: URLRequest = .mockWith(url: "https://graphql.example.com/api")
+        mockRequest.setValue("FailedMutation", forHTTPHeaderField: ExpectedGraphQLHeaders.operationName)
+        mockRequest.setValue("mutation", forHTTPHeaderField: ExpectedGraphQLHeaders.operationType)
+
+        let immutableRequest = ImmutableRequest(request: mockRequest)
+        let taskInterception = URLSessionTaskInterception(request: immutableRequest, isFirstParty: false)
+        let taskError = NSError(domain: "network", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection failed"])
+        taskInterception.register(response: nil, error: taskError)
+
+        // When
+        handler.interceptionDidComplete(interception: taskInterception)
+
+        // Then
+        waitForExpectations(timeout: 0.5, handler: nil)
+
+        let attributes = try XCTUnwrap(stopResourceWithErrorCommand?.attributes)
+        XCTAssertEqual(attributes[CrossPlatformAttributes.graphqlOperationName] as? String, "FailedMutation")
+        XCTAssertEqual(attributes[CrossPlatformAttributes.graphqlOperationType] as? String, "mutation")
+    }
+
     // MARK: - Helper Methods
 
     private func extractBaggageKeyValuePairs(from header: String) -> [String: String] {
@@ -959,4 +1027,13 @@ class URLSessionRUMResourcesHandlerTests: XCTestCase {
 
         return dict
     }
+}
+
+// MARK: - Test Helpers
+
+struct ExpectedGraphQLHeaders {
+    static let operationName: String = "_dd-custom-header-graph-ql-operation-name"
+    static let operationType: String = "_dd-custom-header-graph-ql-operation-type"
+    static let variables: String = "_dd-custom-header-graph-ql-variables"
+    static let payload: String = "_dd-custom-header-graph-ql-payload"
 }

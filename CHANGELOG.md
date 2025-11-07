@@ -1,5 +1,27 @@
 # Unreleased
 
+# 3.2.0 / 30-10-2025
+
+- [FIX] Fix Logger race condition. See [#2514][]
+- [FEATURE] Add `DatadogFlags` module for feature flag evaluation and management. See [#2532][]
+- [FEATURE] Send data for GraphQL requests in Resource Events. See [#2501][]
+- [FIX] Fix OTel parent spans with multiple sequential child spans. See [#2530][] (Thanks [@jbluntz][])
+- [FIX] Fix typos in internal accessibility implementation. See [#2538][] (Thanks [@tdr-alays][])
+
+# 3.1.0 / 18-09-2025
+
+- [FEATURE] Add Start and End Feature Operations APIs. See [#2469][]
+- [FEATURE] Send Accessibility attributes in View Updates. See [#2410][]
+- [IMPROVEMENT] Add missing `versionMajor` property to the `DDLogEventOperatingSystem` definition in Objective-C. See [#2463][]
+- [IMPROVEMENT] Add `ddtags` to RUM events. See [#2436][]
+- [FIX] Fix `LogEvent` device types. See [#2474][]
+
+# 3.0.0 / 02-09-2025
+
+Release `3.0` introduces breaking changes. Follow the [Migration Guide](MIGRATION.md) to upgrade from `2.x` versions.
+
+- [FIX] Fix `DDLogEvent.accountInfo` property initialization in case of missing account info. See [#2442][]
+- [IMPROVEMENT] Update Session Replay batch maximum age to 5hrs. See [#2455][]
 - [IMPROVEMENT] Update the default tracing sampling rate to 100%. See [#2253][] 
 - [IMPROVEMENT] Update the default TraceContextInjection to `.sampled`. See [#2253][]
 - [IMPROVEMENT] Enforce head-based sampling on Trace by default. See [#2288][]
@@ -17,7 +39,6 @@
 - [IMPROVEMENT] Improve SwiftUI system image and SF symbol capture in Session Replay through shape SVG recording, image maskColor support, and drawing rasterization. See [#2432][] [#2428][] [#2391][]
 
 # 2.30.0 / 28-07-2025
-
 - [FEATURE] Add SwiftUI support for Session Replay privacy overrides. See [#2333][]
 - [FEATURE] Add Clear User Info API. See [#2369][]
 - [FEATURE] Collect battery and locale attributes. See [#2351][] [#2327][]
@@ -945,6 +966,19 @@ Release `2.0` introduces breaking changes. Follow the [Migration Guide](MIGRATIO
 [#2370]: https://github.com/DataDog/dd-sdk-ios/pull/2370
 [#2395]: https://github.com/DataDog/dd-sdk-ios/pull/2395
 [#2405]: https://github.com/DataDog/dd-sdk-ios/pull/2405
+[#2410]: https://github.com/DataDog/dd-sdk-ios/pull/2410
+[#2442]: https://github.com/DataDog/dd-sdk-ios/pull/2442
+[#2455]: https://github.com/DataDog/dd-sdk-ios/pull/2455
+[#2463]: https://github.com/DataDog/dd-sdk-ios/pull/2463
+[#2410]: https://github.com/DataDog/dd-sdk-ios/pull/2410
+[#2436]: https://github.com/DataDog/dd-sdk-ios/pull/2436
+[#2469]: https://github.com/DataDog/dd-sdk-ios/pull/2469
+[#2474]: https://github.com/DataDog/dd-sdk-ios/pull/2474
+[#2501]: https://github.com/DataDog/dd-sdk-ios/pull/2501
+[#2530]: https://github.com/DataDog/dd-sdk-ios/pull/2530
+[#2538]: https://github.com/DataDog/dd-sdk-ios/pull/2538
+[#2532]: https://github.com/DataDog/dd-sdk-ios/pull/2532
+[#2514]: https://github.com/DataDog/dd-sdk-ios/pull/2514
 
 [@00fa9a]: https://github.com/00FA9A
 [@britton-earnin]: https://github.com/Britton-Earnin
@@ -979,3 +1013,5 @@ Release `2.0` introduces breaking changes. Follow the [Migration Guide](MIGRATIO
 [@jfiser-paylocity]: https://github.com/jfiser-paylocity
 [@Hengyu]: https://github.com/Hengyu
 [@naftaly]: https://github.com/naftaly
+[@jbluntz]: https://github.com/jbluntz
+[@tdr-alays]: https://github.com/tdr-alays

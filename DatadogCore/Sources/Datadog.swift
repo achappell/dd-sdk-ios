@@ -33,7 +33,7 @@ import DatadogInternal
 ///     
 public enum Datadog {
     /// Verbosity level of Datadog SDK. Can be used for debugging purposes.
-    /// If set, internal events occuring inside SDK will be printed to debugger console if their level is equal or greater than `verbosityLevel`.
+    /// If set, internal events occurring inside SDK will be printed to debugger console if their level is equal or greater than `verbosityLevel`.
     /// Default is `nil`.
     public static var verbosityLevel: CoreLoggerLevel? {
         get { _verbosityLevel.wrappedValue }
@@ -262,11 +262,16 @@ public enum Datadog {
         #endif
 
         do {
-            return try initializeOrThrow(
-                with: configuration,
-                trackingConsent: trackingConsent,
-                instanceName: instanceName
-            )
+            // To safely instrument the application lifecycle observer and other providers,
+            // SDK initialization must occur on the main thread. This enforcement is also present
+            // in all Features, ensuring a proper registration order.
+            return try runOnMainThreadSync {
+                return try initializeOrThrow(
+                    with: configuration,
+                    trackingConsent: trackingConsent,
+                    instanceName: instanceName
+                )
+            }
         } catch {
             consolePrint("\(error)", .error)
             return NOPDatadogCore()

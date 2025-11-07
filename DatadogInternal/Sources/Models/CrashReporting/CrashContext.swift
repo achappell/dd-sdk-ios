@@ -108,13 +108,13 @@ public struct CrashContext: Codable, Equatable {
         lastLogAttributes: LogEventAttributes?
     ) {
         self.serverTimeOffset = serverTimeOffset
-        self.service = service
-        self.env = env
-        self.version = version
+        self.service = service.sanitizedToDDTags()
+        self.env = env.sanitizedToDDTags()
+        self.version = version.sanitizedToDDTags()
         self.buildNumber = buildNumber
         self.device = device
         self.os = os
-        self.sdkVersion = service
+        self.sdkVersion = service.sanitizedToDDTags()
         self.source = source
         self.trackingConsent = trackingConsent
         self.userInfo = userInfo
@@ -141,7 +141,7 @@ public struct CrashContext: Codable, Equatable {
         self.env = context.env
         self.version = context.version
         self.buildNumber = context.buildNumber
-        self.device = context.normalizedDevice
+        self.device = context.normalizedDevice()
         self.os = context.os
         self.sdkVersion = context.sdkVersion
         self.source = context.source
@@ -150,14 +150,14 @@ public struct CrashContext: Codable, Equatable {
         self.accountInfo = context.accountInfo
         self.networkConnectionInfo = context.networkConnectionInfo
         self.carrierInfo = context.carrierInfo
-        self.lastIsAppInForeground = context.applicationStateHistory.currentSnapshot.state.isRunningInForeground
+        self.lastIsAppInForeground = context.applicationStateHistory.currentState.isRunningInForeground
 
         self.lastRUMViewEvent = lastRUMViewEvent
         self.lastRUMSessionState = lastRUMSessionState
         self.lastRUMAttributes = lastRUMAttributes
         self.lastLogAttributes = lastLogAttributes
 
-        self.appLaunchDate = context.launchTime.launchDate
+        self.appLaunchDate = context.launchInfo.processLaunchDate
     }
 
     public static func == (lhs: CrashContext, rhs: CrashContext) -> Bool {
@@ -177,5 +177,20 @@ public struct CrashContext: Codable, Equatable {
         lhs.accountInfo?.id == rhs.accountInfo?.id &&
         lhs.accountInfo?.name == rhs.accountInfo?.name &&
         lhs.appLaunchDate == rhs.appLaunchDate
+    }
+}
+
+extension CrashContext {
+    /// Datadog tags to send in the error events.
+    public var ddTags: String {
+        let tags = [
+            "service": service,
+            "version": version,
+            "sdk_version": sdkVersion,
+            "env": env
+        ]
+
+        return tags.map { "\($0.key):\($0.value)" }
+            .joined(separator: ",")
     }
 }

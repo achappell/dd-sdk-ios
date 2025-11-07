@@ -114,6 +114,23 @@ internal final class URLSessionRUMResourcesHandler: DatadogURLSessionHandler, RU
             interception.completion?.error
         ) ?? [:]
 
+        let originalRequest = interception.request.unsafeOriginal
+
+        // Extract GraphQL attributes from request headers
+        var combinedAttributes = userAttributes
+        if let operationName = originalRequest.value(forHTTPHeaderField: GraphQLHeaders.operationName) {
+            combinedAttributes[CrossPlatformAttributes.graphqlOperationName] = operationName
+        }
+        if let operationType = originalRequest.value(forHTTPHeaderField: GraphQLHeaders.operationType) {
+            combinedAttributes[CrossPlatformAttributes.graphqlOperationType] = operationType
+        }
+        if let variables = originalRequest.value(forHTTPHeaderField: GraphQLHeaders.variables) {
+            combinedAttributes[CrossPlatformAttributes.graphqlVariables] = variables
+        }
+        if let payload = originalRequest.value(forHTTPHeaderField: GraphQLHeaders.payload) {
+            combinedAttributes[CrossPlatformAttributes.graphqlPayload] = payload
+        }
+
         if let resourceMetrics = interception.metrics {
             subscriber.process(
                 command: RUMAddResourceMetricsCommand(
@@ -130,7 +147,7 @@ internal final class URLSessionRUMResourcesHandler: DatadogURLSessionHandler, RU
                 command: RUMStopResourceCommand(
                     resourceKey: interception.identifier.uuidString,
                     time: dateProvider.now,
-                    attributes: userAttributes,
+                    attributes: combinedAttributes,
                     kind: RUMResourceType(response: httpResponse),
                     httpStatusCode: httpResponse.statusCode,
                     size: interception.metrics?.responseSize
@@ -147,7 +164,7 @@ internal final class URLSessionRUMResourcesHandler: DatadogURLSessionHandler, RU
                     source: .network,
                     httpStatusCode: interception.completion?.httpResponse?.statusCode,
                     globalAttributes: [:],
-                    attributes: userAttributes
+                    attributes: combinedAttributes
                 )
             )
         }

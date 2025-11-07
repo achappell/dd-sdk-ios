@@ -11,6 +11,11 @@ internal final class TelemetryReceiver: FeatureMessageReceiver {
     /// Maximum number of telemetry events allowed per RUM  sessions.
     static let maxEventsPerSessions: Int = 100
 
+    /// A name of the telemetry attribute set for all ERROR and DEBUG telemetry events (including metrics).
+    /// The value of this attribute represents the number of milliseconds elapsed from the process start
+    /// to the moment the telemetry event was recorded.
+    static let uptimeAttributeName: String = "process_uptime"
+
     /// RUM feature scope.
     let featureScope: FeatureScope
     let dateProvider: DateProvider
@@ -112,6 +117,10 @@ internal final class TelemetryReceiver: FeatureMessageReceiver {
         record(event: id) { context, writer in
             let rum = context.additionalContext(ofType: RUMCoreContext.self)
 
+            let uptimeMs = date.timeIntervalSince(context.launchInfo.processLaunchDate).toInt64Milliseconds
+            var attributes = attributes ?? [:]
+            attributes[TelemetryReceiver.uptimeAttributeName] = uptimeMs
+
             let event = TelemetryDebugEvent(
                 dd: .init(),
                 action: rum?.userActionID.map { .init(id: $0) },
@@ -126,7 +135,7 @@ internal final class TelemetryReceiver: FeatureMessageReceiver {
                     device: .init(context.device),
                     message: message,
                     os: .init(osInfo: context.os),
-                    telemetryInfo: attributes ?? [:]
+                    telemetryInfo: attributes
                 ),
                 version: context.sdkVersion,
                 view: rum?.viewID.map { .init(id: $0) }
@@ -153,6 +162,11 @@ internal final class TelemetryReceiver: FeatureMessageReceiver {
         record(event: id) { context, writer in
             let rum = context.additionalContext(ofType: RUMCoreContext.self)
 
+            let uptimeMs = date.timeIntervalSince(context.launchInfo.processLaunchDate).toInt64Milliseconds
+            let attributes: [String: Encodable] = [
+                TelemetryReceiver.uptimeAttributeName: uptimeMs
+            ]
+
             let event = TelemetryErrorEvent(
                 dd: .init(),
                 action: rum?.userActionID.map { .init(id: $0) },
@@ -168,7 +182,7 @@ internal final class TelemetryReceiver: FeatureMessageReceiver {
                     error: .init(kind: kind, stack: stack),
                     message: message,
                     os: .init(osInfo: context.os),
-                    telemetryInfo: [:]
+                    telemetryInfo: attributes
                 ),
                 version: context.sdkVersion,
                 view: rum?.viewID.map { .init(id: $0) }
@@ -265,6 +279,9 @@ internal final class TelemetryReceiver: FeatureMessageReceiver {
                 effectiveSampleRate = effectiveSampleRate.composed(with: headSampleRate)
             }
 
+            let uptimeMs = date.timeIntervalSince(context.launchInfo.processLaunchDate).toInt64Milliseconds
+            attributes[TelemetryReceiver.uptimeAttributeName] = uptimeMs
+
             let event = TelemetryDebugEvent(
                 dd: .init(),
                 action: rum?.userActionID.map { .init(id: $0) },
@@ -347,6 +364,14 @@ private extension TelemetryUsageEvent.Telemetry.Usage {
                         noActiveView: viewLoadingTime.noActiveView,
                         noView: viewLoadingTime.noView,
                         overwritten: viewLoadingTime.overwritten
+                    )
+                )
+            )
+        case .addOperationStepVital(let addOperationStepVital):
+            self = .telemetryCommonFeaturesUsage(
+                value: .addOperationStepVital(
+                    value: .init(
+                        actionType: addOperationStepVital.actionType
                     )
                 )
             )
